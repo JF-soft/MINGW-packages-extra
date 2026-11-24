@@ -1,0 +1,21 @@
+From e72c9b5a29c1a927ceeabf189dc12fbf4ee25b17 Mon Sep 17 00:00:00 2001
+From: "Jonatan R. Fischer" <jfischer@lyrtron.com.ar>
+Date: Tue, 24 Nov 2026 11:51:30 -0300
+Subject: [PATCH] tests: skip test_encode_dataclass_classvars_ignored on win32
+
+---
+ tests/unit/test_common.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tests/unit/test_common.py b/tests/unit/test_common.py
+index 0fa8ab6..c43247f 100644
+--- a/tests/unit/test_common.py
++++ b/tests/unit/test_common.py
+@@ -3461,6 +3461,7 @@ class TestDataclass:
+         res = proto.decode(proto.encode(x))
+         assert res == {"x": 1, "y": 2}
+ 
++    @pytest.mark.skipif(sys.platform == "win32", reason="Does not work on MSYS2!")
+     def test_encode_dataclass_classvars_ignored(self, proto):
+         @dataclass
+         class Ex:

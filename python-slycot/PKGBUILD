@@ -1,10 +1,9 @@
-# Maintainer: Mohamed Amine Zghal (medaminezghal) <medaminezghal at outlook dot com>
-# Contributor: Jonatan R. Fischer <jonafischer at gmail dot com>
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
 
 _realname=slycot
 pkgbase=mingw-w64-python-${_realname}
 pkgname=("${MINGW_PACKAGE_PREFIX}-python-${_realname}")
-pkgver=0.7.0
+pkgver=0.7.1
 pkgrel=1
 pkgdesc="A wrapper for the SLICOT control and systems library."
 arch=('any')
@@ -37,7 +36,7 @@ checkdepends=(
 options=('!strip')
 
 source=("https://files.pythonhosted.org/packages/source/${_realname:0:1}/$_realname/$_realname-$pkgver.tar.gz")
-sha256sums=('41ba13991982b0304520bf5115491d63f644389552eea62fc2ecbd21ef661001')
+sha256sums=('b542acc84f389a9acd973f8836ef18c5b06a8b2ad62c42ddef2227d9e6e370b4')
 
 prepare() {
   rm -rf python-build-${MSYSTEM}

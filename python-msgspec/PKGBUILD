@@ -1,12 +1,10 @@
-# Maintainer: envolution
-# Contributor: rumpelsepp <stefan at rumpelsepp dot org>
-# Contributor: Carl Smedstad <carsme@archlinux.org>
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
 # shellcheck shell=bash disable=SC2034,SC2154
 
 _realname=msgspec
 pkgbase=mingw-w64-python-${_realname}
 pkgname=("${MINGW_PACKAGE_PREFIX}-python-${_realname}")
-pkgver=0.19.0
+pkgver=0.22.0
 pkgrel=1
 pkgdesc="A fast and friendly JSON/MessagePack library, with optional schema validation"
 arch=('any')
@@ -19,54 +17,58 @@ msys2_references=(
 
 depends=(
   "${MINGW_PACKAGE_PREFIX}-python"
-  "${MINGW_PACKAGE_PREFIX}-python-attrs"
-  "${MINGW_PACKAGE_PREFIX}-python-typing_extensions"
 )
 makedepends=(
-  "git"
   "${MINGW_PACKAGE_PREFIX}-python-build"
   "${MINGW_PACKAGE_PREFIX}-python-installer"
   "${MINGW_PACKAGE_PREFIX}-python-setuptools"
+  "${MINGW_PACKAGE_PREFIX}-python-setuptools-scm"
   "${MINGW_PACKAGE_PREFIX}-python-wheel"
 )
 checkdepends=(
+  "${MINGW_PACKAGE_PREFIX}-python-attrs"
   "${MINGW_PACKAGE_PREFIX}-python-msgpack"
   "${MINGW_PACKAGE_PREFIX}-python-pytest"
-)
-optdepends=(
-  "${MINGW_PACKAGE_PREFIX}-python-tomli-w: for TOML support"
-  "${MINGW_PACKAGE_PREFIX}-python-tomli: for TOML support"
-  "${MINGW_PACKAGE_PREFIX}-python-yaml: for YAML support"
+  "${MINGW_PACKAGE_PREFIX}-python-pyaml"
+  "${MINGW_PACKAGE_PREFIX}-python-tomli-w"
 )
 source=(
   "${pkgname}-${pkgver}.tar.gz::https://github.com/jcrist/msgspec/archive/refs/tags/${pkgver}.tar.gz"
-  "0001-avoid_dataclass_classvar_test_on_windows.patch"
+  # Upstream setup.py passes MSVC-only C11 atomics flags on win32, which
+  # break MinGW (GCC) builds; gate them on the compiler not being gcc.
+  '0001-mingw_skip_msvc_c11_flags.patch'
+  # Encoding a dataclass with ClassVar fields leaks the ClassVar field
+  # into the json/msgpack output on win32 builds; skip the test.
+  '0001-skip_dataclass_classvars_test_on_win32.patch'
 )
 sha256sums=(
-  '33961077a37830c54fa3108bd226a9d7a09b91ff82ef7b976a371039b54b6bc7'
-  'f16ec0dd19aa12208af56261298ec66916b36bf64b81bb1ddd181d54bd87fcfb'
+  'c4ff244478885f25c4375f99efa8f8c27a854e0f2644df3fd6148df62a780cb9'
+  'aa97b50e044d91f84b7692ebfc4605e27c6a1dc8def6ab4eae32fefb035f54c2'
+  '216d624e9776479059e4dacd2c3b9c4191ac1548fa1428480343c4b45d6c00e1'
 )
 
 prepare() {
   rm -rf python-build-${MSYSTEM}
   cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
   cd "${srcdir}/python-build-${MSYSTEM}"
-  patch -p1 < "${srcdir}/0001-avoid_dataclass_classvar_test_on_windows.patch"
+  patch -Np1 -i "${srcdir}/0001-mingw_skip_msvc_c11_flags.patch"
+  patch -Np1 -i "${srcdir}/0001-skip_dataclass_classvars_test_on_win32.patch"
 }
 
 build() {
   cd "${srcdir}/python-build-${MSYSTEM}"
-  ${MINGW_PREFIX}/bin/python -m build --wheel --skip-dependency-check --no-isolation
+  # The build tree is not a git checkout and its name does not match the
+  # parentdir_prefix ("msgspec-"), so pin the version explicitly.
+  SETUPTOOLS_SCM_PRETEND_VERSION="${pkgver}" \
+    ${MINGW_PREFIX}/bin/python -m build --wheel --skip-dependency-check --no-isolation
 }
 
 check() {
-  # JF: there are two test that are failing in windows. Check out why!
+  cd "${srcdir}/python-build-${MSYSTEM}"
   rm -rf test-env
   ${MINGW_PREFIX}/bin/python -m venv --system-site-packages test-env
-  local site_packages=$(${MINGW_PREFIX}/bin/python -c "import site; print(site.getsitepackages()[0].replace('/usr/', ''))")
-  export PYTHONPATH="$PWD/test-env/$site_packages"
-  test-env/bin/python -m installer "${srcdir}/python-build-${MSYSTEM}/dist/"*.whl
-  test-env/bin/python -m pytest "${srcdir}/$_realname-$pkgver/tests/"
+  test-env/bin/python -m installer dist/*.whl
+  test-env/bin/python -m pytest tests/unit
 }
 
 package() {

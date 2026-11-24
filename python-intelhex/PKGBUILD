@@ -1,5 +1,4 @@
-# Maintainer: Filipe Laíns (FFY00) <lains@archlinux.org>
-# Contributor: Jonatan R. Fischer <jonafischer at gmail dot com>
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
 
 _realname=intelhex
 pkgbase=mingw-w64-python-${_realname}

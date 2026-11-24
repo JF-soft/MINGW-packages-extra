@@ -1,11 +1,10 @@
-# Maintainer: Mohamed Amine Zghal (medaminezghal) <medaminezghal at outlook dot com>
-# Contributor: Jonatan R. Fischer <jonafischer at gmail dot com>
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
 
 _realname=control
 pkgbase=mingw-w64-python-${_realname}
 pkgname=("${MINGW_PACKAGE_PREFIX}-python-${_realname}")
 pkgver=0.10.2
-pkgrel=5
+pkgrel=6
 pkgdesc="Python Control Systems Library."
 arch=('any')
 mingw_arch=('ucrt64' 'clang64' 'clangarm64')
@@ -40,13 +39,29 @@ checkdepends=(
   "${MINGW_PACKAGE_PREFIX}-python-cvxopt"
   "${MINGW_PACKAGE_PREFIX}-python-pandas"
 )
-source=("https://files.pythonhosted.org/packages/source/${_realname:0:1}/$_realname/$_realname-$pkgver.tar.gz")
-sha256sums=('d0cf63f6cfb68a4c8e827c26c3744d129e9777fedc9a5d86ca4740548f23a98b')
+source=(
+  "https://files.pythonhosted.org/packages/source/${_realname:0:1}/$_realname/$_realname-$pkgver.tar.gz"
+  # Backport of upstream commit ae4915c4ece5f417fa514dadeb0d30ab412a28aa:
+  # NumPy 2.5 deprecates in-place assignment to ndarray.shape; the
+  # DeprecationWarnings leak into pytest.warns(record=True) and break
+  # control/tests/nyquist_test.py::test_nyquist_basic (assert 11 == 2).
+  '0001-numpy25_shape_deprecation.patch'
+)
+sha256sums=('d0cf63f6cfb68a4c8e827c26c3744d129e9777fedc9a5d86ca4740548f23a98b'
+            'ed4aaecc0cf174739992c0bd4780754e630f24b3b2cd28c4d1bc7761e3253d1b')
 
 prepare() {
   rm -rf python-build-${MSYSTEM}
   cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
   cd "${srcdir}/python-build-${MSYSTEM}"
+
+  # Fix numpy 2.5 "Setting the shape on a NumPy array has been deprecated"
+  # DeprecationWarnings, which leak into pytest.warns(record=True) and break
+  # nyquist_test.py::test_nyquist_basic. Upstream commit ae4915c.
+  # JF: git apply does NOT work here: when srcdir is a subdirectory of an
+  # outer git repo (this repo), git silently skips the patch and exits 0
+  # ("Skipped patch '...'"), so use plain patch instead.
+  patch -Np1 -i "${srcdir}/0001-numpy25_shape_deprecation.patch"
 
   # JF: it seems that this is not working (I commented this on the AUR website)!
   #sed -i "s/('shooting', 3, None, 'xfail')/('shooting', 3, None, 'endpoint')/g" control/tests/optimal_test.py

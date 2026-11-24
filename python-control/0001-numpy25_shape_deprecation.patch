@@ -1,0 +1,48 @@
+From f04ae66c8a8430eb42601364489738846b07f01b Mon Sep 17 00:00:00 2001
+From: Richard Murray <murray@cds.caltech.edu>
+Date: Tue, 24 Nov 2026 11:26:59 -0300
+Subject: [PATCH] change unsupported "shape =" to reshape() to avoid warnings
+
+Backport of upstream commit ae4915c4ece5f417fa514dadeb0d30ab412a28aa
+(regenerated against 0.10.2). NumPy 2.5 deprecates in-place assignment
+to ndarray.shape; the resulting DeprecationWarnings leak into
+pytest.warns(record=True) and make test_nyquist_basic fail with
+"assert 11 == 2".
+
+https://github.com/python-control/python-control/commit/ae4915c4ece5f417fa514dadeb0d30ab412a28aa
+---
+ control/descfcn.py | 3 +--
+ control/statesp.py | 6 +++---
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/control/descfcn.py b/control/descfcn.py
+index 6f3f516..460b226 100644
+--- a/control/descfcn.py
++++ b/control/descfcn.py
+@@ -188,8 +188,7 @@ def describing_function(
+ 
+     # Go through all of the amplitudes we were given
+     retdf = np.empty(np.shape(A), dtype=complex)
+-    df = retdf                  # Access to the return array
+-    df.shape = (-1, )           # as a 1D array
++    df = retdf.reshape((-1, ))  # Access to the return array as a 1D array
+     for i, a in enumerate(np.atleast_1d(A)):
+         # Make sure we got a valid argument
+         if a == 0:
+diff --git a/control/statesp.py b/control/statesp.py
+index 65529b9..eece2e2 100644
+--- a/control/statesp.py
++++ b/control/statesp.py
+@@ -261,9 +261,9 @@ class StateSpace(NonlinearIOSystem, LTI):
+ 
+         # Reset shapes if the system is static
+         if static:
+-            A.shape = (0, 0)
+-            B.shape = (0, self.ninputs)
+-            C.shape = (self.noutputs, 0)
++            A = A.reshape((0, 0))
++            B = B.reshape((0, self.ninputs))
++            C = C.reshape((self.noutputs, 0))
+ 
+         # Check to make sure everything is consistent
+         _check_shape(A, self.nstates, self.nstates, name="A")
