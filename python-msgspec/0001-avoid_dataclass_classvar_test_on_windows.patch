@@ -1,0 +1,11 @@
+diff '--color=auto' -ruN src/msgspec-0.19.0/tests/test_common.py src_jf/msgspec-0.19.0/tests/test_common.py
+--- src/msgspec-0.19.0/tests/test_common.py	2024-12-27 18:06:58.000000000 +0100
++++ src_jf/msgspec-0.19.0/tests/test_common.py	2025-08-27 17:10:59.082451000 +0200
+@@ -2567,6 +2567,7 @@
+         res = proto.decode(proto.encode(x))
+         assert res == {"x": 1, "y": 2}
+ 
++    @pytest.mark.skipif(sys.platform == "win32", reason="Does not work on MSYS2!")
+     def test_encode_dataclass_classvars_ignored(self, proto):
+         @dataclass
+         class Ex:

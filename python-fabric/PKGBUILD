@@ -1,0 +1,54 @@
+# Maintainer: Massimiliano Torromeo <massimiliano.torromeo@gmail.com>
+# Contributor: Sven-Hendrik Haase <sh@lutzhaase.com>
+# Contributor: Francois Boulogne <fboulogne at april dot org>
+# Contributor: Jonatan R. Fischer <jonafischer at gmail dot com>
+
+_realname=fabric
+pkgbase=mingw-w64-python-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-python-${_realname}")
+pkgver=3.2.2
+pkgrel=2
+pkgdesc="Python library and command-line tool designed to streamline deploying applications or performing system administration tasks via the SSH protocol"
+arch=('any')
+mingw_arch=('ucrt64' 'clang64' 'clangarm64')
+msys2_references=(
+  'purl: pkg:pypi/fabric'
+)
+url="https://github.com/fabric/fabric"
+license=('spdx:BSD-2-Clause')
+depends=(
+  "${MINGW_PACKAGE_PREFIX}-python-paramiko"
+  "${MINGW_PACKAGE_PREFIX}-python-invoke"
+  "${MINGW_PACKAGE_PREFIX}-python-decorator"
+  "${MINGW_PACKAGE_PREFIX}-python-deprecated"
+  "${MINGW_PACKAGE_PREFIX}-python-pytest"
+)
+#optdepends=("${MINGW_PACKAGE_PREFIX}-python-patchwork: Common deployment/sysadmin operations")
+makedepends=(
+  "${MINGW_PACKAGE_PREFIX}-python-setuptools"
+  "${MINGW_PACKAGE_PREFIX}-python-wheel"
+  "${MINGW_PACKAGE_PREFIX}-python-build"
+  "${MINGW_PACKAGE_PREFIX}-python-installer"
+)
+source=("https://github.com/fabric/fabric/archive/${pkgver}/${_realname}-${pkgver}.tar.gz")
+sha512sums=('469eaf3e17fb1708626ba13e89ede6fac87788f972b2affc60a2f4bc271e9f7de633836ce9597c983a9175296f510e2ddc1177e36ab1e49ca123231ad6ead904')
+
+prepare() {
+  rm -rf python-build-${MSYSTEM}
+  cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
+}
+
+build() {
+  cd "${srcdir}/python-build-${MSYSTEM}"
+  ${MINGW_PREFIX}/bin/python -m build --wheel --skip-dependency-check --no-isolation
+}
+
+package() {
+  cd "${srcdir}/python-build-${MSYSTEM}"
+
+  MSYS2_ARG_CONV_EXCL="--prefix=" \
+    ${MINGW_PREFIX}/bin/python -m installer --prefix=${MINGW_PREFIX} \
+    --destdir="${pkgdir}" dist/*.whl
+
+  install -Dm644 LICENSE "${pkgdir}${MINGW_PREFIX}/share/licenses/python-${_realname}/LICENSE"
+}

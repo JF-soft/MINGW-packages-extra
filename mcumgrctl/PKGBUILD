@@ -1,0 +1,79 @@
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
+
+_realname=mcumgrctl
+pkgbase=mingw-w64-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
+pkgver=0.20.0
+pkgrel=3
+pkgdesc="Rust CLI for Zephyr's MCUmgr protocol"
+arch=('any')
+mingw_arch=('ucrt64' 'clang64' 'clangarm64')
+url="https://github.com/Finomnis/mcumgr-toolkit"
+msys2_repository_url="https://github.com/Finomnis/mcumgr-toolkit"
+msys2_changelog_url="https://github.com/Finomnis/mcumgr-toolkit/blob/main/CHANGELOG.md"
+msys2_references=(
+  'purl: pkg:cargo/mcumgrctl@0.20.0'
+)
+license=('spdx:MIT OR Apache-2.0')
+# Verified with objdump -p: the binary imports only Windows system DLLs
+# (UCRT api-ms-win-crt-*, kernel32, ws2_32, oleaut32, combase, setupapi,
+# cfgmgr32, advapi32, userenv, ntdll); no libgcc/libstdc++/libwinpthread.
+depends=()
+makedepends=(
+  "${MINGW_PACKAGE_PREFIX}-rust"
+)
+# NOTE: the upstream tag is "0.20.0" (no "v" prefix).
+source=("${_realname}-${pkgver}.tar.gz::https://github.com/Finomnis/mcumgr-toolkit/archive/refs/tags/${pkgver}.tar.gz")
+sha256sums=('c7b29cb792eda9924cc4b810f9830b83b504f076a891252500e65ac99d8f385e')
+
+_srcname="mcumgr-toolkit-${pkgver}"
+# rust-version field of the workspace Cargo.toml
+_required_rust='1.89'
+
+# The upstream tarball contains a real symlink (mcumgr-toolkit/README.md ->
+# ../README.md). libarchive/bsdtar cannot create native symlinks on Windows
+# systems where they are disabled ("Invalid argument" while extracting), so
+# extract with GNU tar from the MSYS environment, which writes the symlink as
+# a regular file copy. See noextract and prepare().
+noextract=("${_realname}-${pkgver}.tar.gz")
+
+prepare() {
+  cd "${srcdir}"
+  if [ ! -d "${_srcname}" ]; then
+    tar -xf "${_realname}-${pkgver}.tar.gz"
+  fi
+  cd "${_srcname}"
+
+  local current
+  current="$(rustc --version | awk '{print $2}')"
+  if [ "$(vercmp "$current" "${_required_rust}")" -lt 0 ]; then
+    printf 'rustc %s is older than the required %s (Cargo.toml rust-version); the build may fail\n' \
+      "$current" "${_required_rust}"
+    return 1
+  fi
+
+  cargo fetch --locked --target "${RUST_CHOST}"
+}
+
+build() {
+  cd "${srcdir}/${_srcname}"
+  cargo build --release --frozen -p mcumgrctl
+}
+
+check() {
+  cd "${srcdir}/${_srcname}"
+  # Offline unit tests (CLI argument checks, man page generation) and doctests.
+  cargo test --frozen -p mcumgrctl
+  ./target/release/mcumgrctl.exe --version
+}
+
+package() {
+  cd "${srcdir}/${_srcname}"
+  install -Dm755 target/release/mcumgrctl.exe \
+    "${pkgdir}${MINGW_PREFIX}/bin/mcumgrctl.exe"
+
+  install -Dm644 LICENSE-APACHE \
+    "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE-APACHE"
+  install -Dm644 LICENSE-MIT \
+    "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE-MIT"
+}
