@@ -37,14 +37,17 @@ source=(
   # Upstream setup.py passes MSVC-only C11 atomics flags on win32, which
   # break MinGW (GCC) builds; gate them on the compiler not being gcc.
   '0001-mingw_skip_msvc_c11_flags.patch'
-  # Encoding a dataclass with ClassVar fields leaks the ClassVar field
-  # into the json/msgpack output on win32 builds; skip the test.
-  '0001-skip_dataclass_classvars_test_on_win32.patch'
+  # MinGW extensions get no __declspec(dllimport) for PyAPI_FUNC (CPython
+  # exports.h), so the encoder's tp_getattro == PyObject_GenericGetAttr
+  # check compares against an import thunk and always fails; ClassVar
+  # dataclass fields then leak into json/msgpack output. Resolve the real
+  # address through the import address table.
+  '0001-mingw_generic_getattr_iat.patch'
 )
 sha256sums=(
   'c4ff244478885f25c4375f99efa8f8c27a854e0f2644df3fd6148df62a780cb9'
   'aa97b50e044d91f84b7692ebfc4605e27c6a1dc8def6ab4eae32fefb035f54c2'
-  '216d624e9776479059e4dacd2c3b9c4191ac1548fa1428480343c4b45d6c00e1'
+  '61357a64d85f42b537d87e88bbc7def76121031601395ebf2743519f14d0f7f1'
 )
 
 prepare() {
@@ -52,7 +55,7 @@ prepare() {
   cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
   cd "${srcdir}/python-build-${MSYSTEM}"
   patch -Np1 -i "${srcdir}/0001-mingw_skip_msvc_c11_flags.patch"
-  patch -Np1 -i "${srcdir}/0001-skip_dataclass_classvars_test_on_win32.patch"
+  patch -Np1 -i "${srcdir}/0001-mingw_generic_getattr_iat.patch"
 }
 
 build() {
