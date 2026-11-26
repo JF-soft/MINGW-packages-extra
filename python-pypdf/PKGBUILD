@@ -1,0 +1,92 @@
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
+
+_realname=pypdf
+pkgbase=mingw-w64-python-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-python-${_realname}")
+pkgver=7.2.0
+pkgrel=1
+pkgdesc="Python library for manipulating pages of PDF files"
+arch=('any')
+mingw_arch=('ucrt64' 'clang64' 'clangarm64')
+url="https://github.com/py-pdf/pypdf"
+license=('spdx:BSD-3-Clause')
+msys2_references=(
+  'purl: pkg:pypi/pypdf'
+)
+depends=(
+  "${MINGW_PACKAGE_PREFIX}-python"
+)
+optdepends=(
+  "${MINGW_PACKAGE_PREFIX}-python-cryptography: cryptography-based provider for AES encryption and decryption"
+  "${MINGW_PACKAGE_PREFIX}-python-pillow: image extraction support"
+)
+makedepends=(
+  "${MINGW_PACKAGE_PREFIX}-python-build"
+  "${MINGW_PACKAGE_PREFIX}-python-installer"
+  "${MINGW_PACKAGE_PREFIX}-python-flit-core"
+)
+checkdepends=(
+  "${MINGW_PACKAGE_PREFIX}-python-pytest"
+  "${MINGW_PACKAGE_PREFIX}-python-pytest-timeout"
+  "${MINGW_PACKAGE_PREFIX}-python-cryptography"
+  "${MINGW_PACKAGE_PREFIX}-python-pillow"
+  "${MINGW_PACKAGE_PREFIX}-python-yaml"
+  "${MINGW_PACKAGE_PREFIX}-python-fonttools"
+)
+source=(
+  "https://files.pythonhosted.org/packages/source/${_realname:0:1}/${_realname}/${_realname}-${pkgver}.tar.gz"
+)
+sha256sums=('b2c637b6f0be3def1f762fd8be20118736bafdffc75badab80db003d7a9ed110')
+
+prepare() {
+  rm -rf python-build-${MSYSTEM}
+  cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
+}
+
+build() {
+  cd "${srcdir}/python-build-${MSYSTEM}"
+  ${MINGW_PREFIX}/bin/python -m build --wheel --no-isolation --skip-dependency-check
+}
+
+check() {
+  cd "${srcdir}/python-build-${MSYSTEM}"
+  rm -rf test-env
+  ${MINGW_PREFIX}/bin/python -m venv --system-site-packages test-env
+  test-env/bin/python -m installer dist/*.whl
+
+  # pytest-socket is not packaged for MSYS2, so clear the upstream
+  # addopts ("--disable-socket"); sockets stay available instead.
+  # Tests marked 'samples'/'enable_socket' need files or network access
+  # and are excluded from the package build.
+  #
+  # The four deselected tests are not marked 'samples' upstream but read
+  # PDFs from the sample-files Git submodule, which the PyPI sdist does
+  # not include, so they cannot run here (FileNotFoundError). Report the
+  # missing markers upstream if a future release adds new such tests.
+  test-env/bin/python -m pytest \
+    -o addopts="" \
+    -m "not samples and not enable_socket" \
+    --deselect tests/generic/test_files.py::test_embedded_file__basic \
+    --deselect tests/test_doc_common.py::test_attachments \
+    --deselect "tests/test_writer.py::test_compress_identical_objects__after_removing_an_appended_copy[pdf_path0]" \
+    --deselect "tests/test_writer.py::test_compress_identical_objects__after_removing_an_appended_copy[pdf_path1]" \
+    tests
+}
+
+package() {
+  cd "${srcdir}/python-build-${MSYSTEM}"
+
+  MSYS2_ARG_CONV_EXCL="--prefix=" \
+    ${MINGW_PREFIX}/bin/python -m installer --prefix=${MINGW_PREFIX} \
+    --destdir="${pkgdir}" dist/*.whl
+
+  # Ship .pyc and .opt-1.pyc files, as MSYS2 Python packages do.
+  MSYS2_ARG_CONV_EXCL="-p" \
+    ${MINGW_PREFIX}/bin/python -m compileall -o 0 -o 1 -q \
+    -s"${pkgdir}" -p"/" "${pkgdir}${MINGW_PREFIX}"
+
+  install -Dm644 LICENSE \
+    "${pkgdir}${MINGW_PREFIX}/share/licenses/python-${_realname}/LICENSE"
+}
+
+# vim:set ts=2 sw=2 et:
