@@ -1,0 +1,112 @@
+# Maintainer: Jonatan R. Fischer <jonafischer at gmail dot com>
+
+_realname=forgejo-mcp
+pkgbase=mingw-w64-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
+pkgver=3.6.0
+pkgrel=1
+pkgdesc="Model Context Protocol (MCP) server for the Forgejo REST API"
+arch=('any')
+mingw_arch=('ucrt64' 'clang64' 'clangarm64')
+url="https://git.b4mad.industries/agentic-forges/forgejo-mcp"
+msys2_repository_url="https://git.b4mad.industries/agentic-forges/forgejo-mcp"
+msys2_changelog_url="https://git.b4mad.industries/agentic-forges/forgejo-mcp/releases"
+msys2_issue_tracker_url="https://forgejo.b4mad.net/agentic-forges/forgejo-mcp/issues"
+msys2_references=(
+  'aur: forgejo-mcp'
+)
+# NOTE: the AUR recipe (3.3.0) lists MIT, but the upstream LICENSE and the
+# SPDX headers in every source file are GPL-3.0-or-later.
+license=('spdx:GPL-3.0-or-later')
+# Verified with objdump -p: CGO_ENABLED=0 produces a static Go binary that
+# imports only Windows system DLLs (kernel32, ws2_32, ...); no MSYS2 runtime.
+depends=()
+makedepends=(
+  "${MINGW_PACKAGE_PREFIX}-go"
+)
+options=('!strip')
+# NOTE: upstream tags are "v3.6.0" ("v" prefix). The canonical upstream
+# instance has source archive downloads disabled (404 for /archive/), and the
+# Codeberg repository referenced by the AUR recipe is a read-only mirror
+# frozen at tag v3.3.0, so this uses a pinned Git tag instead (SKIP is
+# legitimate for VCS sources).
+source=("${_realname}-${pkgver}::git+${url}#tag=v${pkgver}")
+sha256sums=('SKIP')
+
+_srcname="${_realname}-${pkgver}"
+# go.mod requires go >= 1.26.
+_required_go='1.26'
+
+prepare() {
+  cd "${srcdir}/${_srcname}"
+
+  local current
+  current="$(go env GOVERSION | sed 's/^go//')"
+  if [ "$(vercmp "$current" "${_required_go}")" -lt 0 ]; then
+    printf 'go %s is older than the required %s (go.mod); the build may fail\n' \
+      "$current" "${_required_go}"
+    return 1
+  fi
+
+  # Fetch all module dependencies up front so the build can run offline.
+  export GOPATH="${srcdir}/go-path"
+  go mod download -modcacherw
+}
+
+build() {
+  cd "${srcdir}/${_srcname}"
+  export GOROOT="${MINGW_PREFIX}/lib/go"
+  export GOPATH="${srcdir}/go-path"
+  # Pure Go build: no cgo, hence no C toolchain and no runtime DLL imports.
+  export CGO_ENABLED=0
+  # Enforce the dependency set resolved in prepare(); no network access.
+  export GOPROXY=off
+  # -buildvcs=false: makepkg checks out a git repo and go's VCS stamping
+  # fails with "error obtaining VCS status"; the version is stamped via
+  # -ldflags -X main.Version instead.
+  export GOFLAGS="-trimpath -mod=readonly -modcacherw -buildmode=pie -buildvcs=false"
+  go build -ldflags "-s -w -X main.Version=${pkgver}" -o forgejo-mcp.exe .
+}
+
+check() {
+  cd "${srcdir}/${_srcname}"
+  export GOROOT="${MINGW_PREFIX}/lib/go"
+  export GOPATH="${srcdir}/go-path"
+  export CGO_ENABLED=0
+  export GOPROXY=off
+  export GOFLAGS="-mod=readonly -modcacherw -buildvcs=false"
+  # Upstream tests use httptest mocks; they do not require network access.
+  # -buildvcs=false: some tests (test/transport) run `go build` themselves and
+  # would otherwise fail on VCS stamping, as in build().
+  #
+  # Excluded Windows-incompatible upstream tests (both are upstream test
+  # harness limitations, not package issues):
+  # - pkg/upload: TestOpenConfinesToUploadRoot creates native symlinks, which
+  #   needs Windows developer mode/admin privileges ("A required privilege is
+  #   not held by the client" on a default installation).
+  # - test/transport: its TestMain builds a helper binary with `go build -o
+  #   <path>/forgejo-mcp` (no .exe suffix) and the sweep tests then cannot
+  #   execute it on Windows; the harness assumes a POSIX host.
+  go test $(go list ./... | grep -v -e '/pkg/upload$' -e '/test/transport$')
+  # Smoke test in --cli mode (without --cli the server blocks on stdio);
+  # FORGEJO_URL only satisfies the config check, no connection is made.
+  FORGEJO_URL=https://example.invalid ./forgejo-mcp.exe --cli list > /dev/null
+}
+
+package() {
+  cd "${srcdir}/${_srcname}"
+
+  install -Dm755 forgejo-mcp.exe \
+    "${pkgdir}${MINGW_PREFIX}/bin/forgejo-mcp.exe"
+
+  install -Dm644 LICENSE \
+    "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE"
+
+  # Documentation and the sample configuration, as the AUR recipe does.
+  install -Dm644 README.md \
+    "${pkgdir}${MINGW_PREFIX}/share/doc/${_realname}/README.md"
+  install -Dm644 CHANGELOG.md \
+    "${pkgdir}${MINGW_PREFIX}/share/doc/${_realname}/CHANGELOG.md"
+  install -Dm644 .env.sample \
+    "${pkgdir}${MINGW_PREFIX}/share/doc/${_realname}/.env.sample"
+}

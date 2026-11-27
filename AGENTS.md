@@ -77,7 +77,8 @@ add an intermediate `mingw/` or `msys/` directory.
 
 The files below a package directory are optional and should be included
 only when required by that recipe. Name each directory after its package
-identity (for example `forgejo-cli` or `python-control`), keep it
+identity (for example `mingw-w64-forgejo-cli` or
+`mingw-w64-python-control`), keep it
 lowercase and stable, and do not combine unrelated recipes.
 
 ### 2.2 Generated files
